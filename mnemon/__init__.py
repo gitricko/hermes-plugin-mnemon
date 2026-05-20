@@ -22,7 +22,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from agent.memory_provider import MemoryProvider
 from tools.registry import tool_error
@@ -90,10 +90,10 @@ class MnemonMemoryProvider(MemoryProvider):
     name = "mnemon"
 
     def __init__(self):
-        self._store: Optional[str] = None
+        self._store: str | None = None
         self._session_id: str = ""
         self._index_path: Path = Path.home() / ".hermes" / "mnemon_id_index.json"
-        self._recall_cache: Optional[list] = None
+        self._recall_cache: list | None = None
         self._last_prefetch_at: float = 0.0
         self._prefetch_ttl: int = 30
 
@@ -222,22 +222,24 @@ class MnemonMemoryProvider(MemoryProvider):
                   importance: int = 3,
                   entities: list[str] | None = None,
                   tags: list[str] | None = None,
-                  source: str = "agent") -> Optional[str]:
+                  source: str = "agent") -> str | None:
         args = ["remember", text, "--cat", category,
                 "--imp", str(importance), "--source", source]
-        if entities:  args += ["--entities", ",".join(entities)]
-        if tags:      args += ["--tags", ",".join(tags)]
+        if entities:
+            args += ["--entities", ",".join(entities)]
+        if tags:
+            args += ["--tags", ",".join(tags)]
         code, stdout, _ = _run_mnemon(args, timeout=15)
         if code != 0:
             return None
         return _json_output(stdout).get("id")
 
-    def _remember_and_index(self, text: str, **kwargs) -> Optional[str]:
+    def _remember_and_index(self, text: str, **kwargs) -> str | None:
         iid = self._remember(text, **kwargs)
         if not iid:
             return None
         with _IDX_LOCK:
-            idx: Dict[str, Any] = {}
+            idx: dict[str, Any] = {}
             if self._index_path.exists():
                 try:
                     idx = json.loads(self._index_path.read_text())
@@ -245,7 +247,7 @@ class MnemonMemoryProvider(MemoryProvider):
                     idx = {}
             idx.setdefault("ids", {})
             idx["ids"][iid] = {
-                "ts": datetime.now(timezone.utc).isoformat(),
+                "ts": datetime.now(datetime.UTC).isoformat(),
                 "text_snippet": text[:80],
                 "store": self._store,
                 "session": self._session_id,

@@ -1,7 +1,8 @@
-import sys
 import json
 import os
+import sys
 from pathlib import Path
+
 from mnemon import _run_mnemon
 
 def handle_mnemon_command(args, parser):
