@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-plugin-mnemon"
+version = "0.1.0"
+description = "Mnemon graph-based memory — Hermes MemoryProvider wrapping the mnemon CLI."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+keywords = ["hermes", "mnemon", "memory", "llm", "agent"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "pytest-cov>=4.1", "ruff>=0.3", "mypy>=1.8"]
+
+[project.urls]
+Homepage = "https://github.com/mnemon-dev/mnemon"
+Repository = "https://github.com/mnemon-dev/mnemon"
+"Bug Tracker" = "https://github.com/mnemon-dev/mnemon/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mnemon*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--tb=short -q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.coverage.run]
+source = ["mnemon"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

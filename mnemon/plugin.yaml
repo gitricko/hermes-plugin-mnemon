@@ -1,0 +1,10 @@
+name: mnemon
+version: 0.1.0
+description: "Mnemon graph-based memory \u2014 four-graph store (temporal, entity,\
+  \ causal, semantic) via mnemon CLI."
+source_url: https://github.com/NousResearch/hermes-agent-plugin-mnemon
+pip_dependencies: []
+hooks:
+- on_session_end
+- on_pre_compress
+- on_memory_write
