@@ -1,9 +1,10 @@
 import json
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from mnemon import _run_mnemon
+
 
 def handle_mnemon_command(args, parser):
     cmd = getattr(args, "mnemon_cmd", None)

@@ -12,7 +12,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Stub out Hermes modules so `mnemon.__init__` can be imported
@@ -348,8 +348,8 @@ class TestConfigAndSetup(unittest.TestCase):
 
     @patch("mnemon._run_mnemon")
     def test_save_config_and_initialize_with_hermes_home(self, mock_run):
-        import tempfile
         import shutil
+        import tempfile
         mock_run.return_value = (0, "", "")
         
         # Create a temporary directory for hermes_home
@@ -402,8 +402,9 @@ class TestCliExtension(unittest.TestCase):
     @patch("mnemon.cli._run_mnemon")
     @patch("sys.stdout", new_callable=__import__("io").StringIO)
     def test_cli_config_success(self, mock_stdout, mock_run):
-        import tempfile
         import shutil
+        import tempfile
+
         from mnemon.cli import handle_mnemon_command
         
         args = MagicMock()
@@ -411,19 +412,15 @@ class TestCliExtension(unittest.TestCase):
         parser = MagicMock()
         
         tmpdir = tempfile.mkdtemp()
-        config_file = Path(tmpdir) / "mnemon.json"
+        config_file = Path(tmpdir) / ".hermes" / "mnemon.json"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text('{"store": "configured-store"}')
         
         try:
-            with patch("pathlib.Path.home", return_value=Path(tmpdir).parent):
-                with patch("mnemon.cli.Path") as mock_path:
-                    mock_path.home.return_value = Path(tmpdir).parent
-                    # Override to return our temp mnemon.json
-                    mock_path.return_value = config_file
-                    
-                    with self.assertRaises(SystemExit) as cm:
-                        handle_mnemon_command(args, parser)
-                    self.assertEqual(cm.exception.code, 0)
+            with patch("mnemon.cli.Path.home", return_value=Path(tmpdir)):
+                with self.assertRaises(SystemExit) as cm:
+                    handle_mnemon_command(args, parser)
+                self.assertEqual(cm.exception.code, 0)
             
             output = mock_stdout.getvalue()
             self.assertIn("configured-store", output)
@@ -433,8 +430,9 @@ class TestCliExtension(unittest.TestCase):
     @patch("mnemon.cli._run_mnemon")
     @patch("sys.stdout", new_callable=__import__("io").StringIO)
     def test_cli_forget_success(self, mock_stdout, mock_run):
-        import tempfile
         import shutil
+        import tempfile
+
         from mnemon.cli import handle_mnemon_command
         
         mock_run.return_value = (0, "forgotten", "")
@@ -444,19 +442,12 @@ class TestCliExtension(unittest.TestCase):
         parser = MagicMock()
         
         tmpdir = tempfile.mkdtemp()
-        index_file = Path(tmpdir) / "mnemon_id_index.json"
+        index_file = Path(tmpdir) / ".hermes" / "mnemon_id_index.json"
+        index_file.parent.mkdir(parents=True, exist_ok=True)
         index_file.write_text('{"ids": {"uuid-123": {"ts": "now"}}}')
         
         try:
-            with patch("mnemon.cli.Path") as mock_path:
-                mock_path.home.return_value = Path(tmpdir).parent
-                # Route the index path checking/writing inside cli.py
-                # Path.home() / ".hermes" / "mnemon_id_index.json"
-                # We can mock index_path to point to index_file
-                def side_effect(*parts):
-                    return index_file
-                mock_path.side_effect = side_effect
-                
+            with patch("mnemon.cli.Path.home", return_value=Path(tmpdir)):
                 with self.assertRaises(SystemExit) as cm:
                     handle_mnemon_command(args, parser)
                 self.assertEqual(cm.exception.code, 0)
