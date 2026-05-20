@@ -20,7 +20,7 @@ import re
 import subprocess
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -247,7 +247,7 @@ class MnemonMemoryProvider(MemoryProvider):
                     idx = {}
             idx.setdefault("ids", {})
             idx["ids"][iid] = {
-                "ts": datetime.now(datetime.UTC).isoformat(),
+                "ts": datetime.now(timezone.utc).isoformat(),
                 "text_snippet": text[:80],
                 "store": self._store,
                 "session": self._session_id,
