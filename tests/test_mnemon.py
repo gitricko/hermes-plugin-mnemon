@@ -412,19 +412,15 @@ class TestCliExtension(unittest.TestCase):
         parser = MagicMock()
         
         tmpdir = tempfile.mkdtemp()
-        config_file = Path(tmpdir) / "mnemon.json"
+        config_file = Path(tmpdir) / ".hermes" / "mnemon.json"
+        config_file.parent.mkdir(parents=True, exist_ok=True)
         config_file.write_text('{"store": "configured-store"}')
         
         try:
-            with patch("pathlib.Path.home", return_value=Path(tmpdir).parent):
-                with patch("mnemon.cli.Path") as mock_path:
-                    mock_path.home.return_value = Path(tmpdir).parent
-                    # Override to return our temp mnemon.json
-                    mock_path.return_value = config_file
-                    
-                    with self.assertRaises(SystemExit) as cm:
-                        handle_mnemon_command(args, parser)
-                    self.assertEqual(cm.exception.code, 0)
+            with patch("mnemon.cli.Path.home", return_value=Path(tmpdir)):
+                with self.assertRaises(SystemExit) as cm:
+                    handle_mnemon_command(args, parser)
+                self.assertEqual(cm.exception.code, 0)
             
             output = mock_stdout.getvalue()
             self.assertIn("configured-store", output)
@@ -446,19 +442,12 @@ class TestCliExtension(unittest.TestCase):
         parser = MagicMock()
         
         tmpdir = tempfile.mkdtemp()
-        index_file = Path(tmpdir) / "mnemon_id_index.json"
+        index_file = Path(tmpdir) / ".hermes" / "mnemon_id_index.json"
+        index_file.parent.mkdir(parents=True, exist_ok=True)
         index_file.write_text('{"ids": {"uuid-123": {"ts": "now"}}}')
         
         try:
-            with patch("mnemon.cli.Path") as mock_path:
-                mock_path.home.return_value = Path(tmpdir).parent
-                # Route the index path checking/writing inside cli.py
-                # Path.home() / ".hermes" / "mnemon_id_index.json"
-                # We can mock index_path to point to index_file
-                def side_effect(*parts):
-                    return index_file
-                mock_path.side_effect = side_effect
-                
+            with patch("mnemon.cli.Path.home", return_value=Path(tmpdir)):
                 with self.assertRaises(SystemExit) as cm:
                     handle_mnemon_command(args, parser)
                 self.assertEqual(cm.exception.code, 0)
