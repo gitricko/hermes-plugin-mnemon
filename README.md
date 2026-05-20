@@ -107,7 +107,7 @@ hermes-plugin-mnemon install   # placeholder — user copies manually
 
 | Hermes hook | What the plugin does |
 |---|---|
-| `initialize(session_id, …)` | Sets `MNEMON_STORE`, creates the store, inits ID index |
+| `initialize(session_id, …)` | Derives fixed store from `agent_identity`, ignores `session_id`; creates store if missing and inits ID index |
 | `prefetch(query)` | Background `mnemon recall` with intent detection; 30 s TTL cache |
 | `sync_turn(user, asst)` | Background `mnemon remember` on every turn |
 | `on_memory_write(action, target, content, …)` | Mirrors built-in `memory add/replace` into mnemon |
@@ -118,11 +118,12 @@ hermes-plugin-mnemon install   # placeholder — user copies manually
 ### Store naming
 
 ```
-<profile>--<session-8-chars>   ← auto-named per-session
+<profile>    ← fixed per-profile store (survives restarts)
 ```
 
-Concurrent sessions and different Hermes profiles never collide. Override via
-`MNEMON_STORE=your-name` env var.
+Each Hermes profile gets its own dedicated store that is reused across sessions,
+so memory persists. Override manually with `MNEMON_STORE=your-name` env var
+(takes precedence over the profile‑derived name).
 
 ---
 
