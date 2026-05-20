@@ -12,7 +12,7 @@ import sys
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 # ---------------------------------------------------------------------------
 # Stub out Hermes modules so `mnemon.__init__` can be imported
@@ -348,8 +348,8 @@ class TestConfigAndSetup(unittest.TestCase):
 
     @patch("mnemon._run_mnemon")
     def test_save_config_and_initialize_with_hermes_home(self, mock_run):
-        import tempfile
         import shutil
+        import tempfile
         mock_run.return_value = (0, "", "")
         
         # Create a temporary directory for hermes_home
@@ -402,8 +402,9 @@ class TestCliExtension(unittest.TestCase):
     @patch("mnemon.cli._run_mnemon")
     @patch("sys.stdout", new_callable=__import__("io").StringIO)
     def test_cli_config_success(self, mock_stdout, mock_run):
-        import tempfile
         import shutil
+        import tempfile
+
         from mnemon.cli import handle_mnemon_command
         
         args = MagicMock()
@@ -433,8 +434,9 @@ class TestCliExtension(unittest.TestCase):
     @patch("mnemon.cli._run_mnemon")
     @patch("sys.stdout", new_callable=__import__("io").StringIO)
     def test_cli_forget_success(self, mock_stdout, mock_run):
-        import tempfile
         import shutil
+        import tempfile
+
         from mnemon.cli import handle_mnemon_command
         
         mock_run.return_value = (0, "forgotten", "")
