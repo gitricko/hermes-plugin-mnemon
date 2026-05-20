@@ -20,9 +20,9 @@ import re
 import subprocess
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from agent.memory_provider import MemoryProvider
 from tools.registry import tool_error
