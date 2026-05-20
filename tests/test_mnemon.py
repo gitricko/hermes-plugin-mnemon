@@ -333,5 +333,149 @@ class TestIntentMap(unittest.TestCase):
         self.assertEqual(p._detect_intent("tell me about recursion"), "GENERAL")
 
 
+# ---------------------------------------------------------------------------
+# Tests: Config and Setup
+# ---------------------------------------------------------------------------
+
+class TestConfigAndSetup(unittest.TestCase):
+
+    def test_get_config_schema(self):
+        p = MnemonMemoryProvider()
+        schema = p.get_config_schema()
+        self.assertIsInstance(schema, list)
+        self.assertEqual(len(schema), 1)
+        self.assertEqual(schema[0]["key"], "store")
+
+    @patch("mnemon._run_mnemon")
+    def test_save_config_and_initialize_with_hermes_home(self, mock_run):
+        import tempfile
+        import shutil
+        mock_run.return_value = (0, "", "")
+        
+        # Create a temporary directory for hermes_home
+        tmpdir = tempfile.mkdtemp()
+        try:
+            p = MnemonMemoryProvider()
+            
+            # 1. Save config
+            p.save_config({"store": "my-custom-store"}, tmpdir)
+            config_file = Path(tmpdir) / "mnemon.json"
+            self.assertTrue(config_file.exists())
+            
+            # 2. Initialize should load the config
+            p.initialize("ses-xyz", agent_identity="default-profile", hermes_home=tmpdir)
+            self.assertEqual(p._store, "my-custom-store")
+            self.assertEqual(p._index_path, Path(tmpdir) / "mnemon_id_index.json")
+            
+        finally:
+            shutil.rmtree(tmpdir)
+
+
+# ---------------------------------------------------------------------------
+# Tests: CLI Extension
+# ---------------------------------------------------------------------------
+
+class TestCliExtension(unittest.TestCase):
+
+    @patch("mnemon.cli._run_mnemon")
+    @patch("sys.stdout", new_callable=__import__("io").StringIO)
+    def test_cli_status_success(self, mock_stdout, mock_run):
+        from mnemon.cli import handle_mnemon_command
+        mock_run.side_effect = [
+            (0, "mnemon v0.1.3", ""),       # --version
+            (0, "default\ntest-store", ""), # store list
+        ]
+        args = MagicMock()
+        args.mnemon_cmd = "status"
+        parser = MagicMock()
+        
+        with patch.dict("os.environ", {"MNEMON_STORE": "test-store"}, clear=False):
+            with self.assertRaises(SystemExit) as cm:
+                handle_mnemon_command(args, parser)
+            self.assertEqual(cm.exception.code, 0)
+            
+        output = mock_stdout.getvalue()
+        self.assertIn("Status: ACTIVE", output)
+        self.assertIn("Version: mnemon v0.1.3", output)
+        self.assertIn("Active Store: test-store", output)
+
+    @patch("mnemon.cli._run_mnemon")
+    @patch("sys.stdout", new_callable=__import__("io").StringIO)
+    def test_cli_config_success(self, mock_stdout, mock_run):
+        import tempfile
+        import shutil
+        from mnemon.cli import handle_mnemon_command
+        
+        args = MagicMock()
+        args.mnemon_cmd = "config"
+        parser = MagicMock()
+        
+        tmpdir = tempfile.mkdtemp()
+        config_file = Path(tmpdir) / "mnemon.json"
+        config_file.write_text('{"store": "configured-store"}')
+        
+        try:
+            with patch("pathlib.Path.home", return_value=Path(tmpdir).parent):
+                with patch("mnemon.cli.Path") as mock_path:
+                    mock_path.home.return_value = Path(tmpdir).parent
+                    # Override to return our temp mnemon.json
+                    mock_path.return_value = config_file
+                    
+                    with self.assertRaises(SystemExit) as cm:
+                        handle_mnemon_command(args, parser)
+                    self.assertEqual(cm.exception.code, 0)
+            
+            output = mock_stdout.getvalue()
+            self.assertIn("configured-store", output)
+        finally:
+            shutil.rmtree(tmpdir)
+
+    @patch("mnemon.cli._run_mnemon")
+    @patch("sys.stdout", new_callable=__import__("io").StringIO)
+    def test_cli_forget_success(self, mock_stdout, mock_run):
+        import tempfile
+        import shutil
+        from mnemon.cli import handle_mnemon_command
+        
+        mock_run.return_value = (0, "forgotten", "")
+        args = MagicMock()
+        args.mnemon_cmd = "forget"
+        args.insight_id = "uuid-123"
+        parser = MagicMock()
+        
+        tmpdir = tempfile.mkdtemp()
+        index_file = Path(tmpdir) / "mnemon_id_index.json"
+        index_file.write_text('{"ids": {"uuid-123": {"ts": "now"}}}')
+        
+        try:
+            with patch("mnemon.cli.Path") as mock_path:
+                mock_path.home.return_value = Path(tmpdir).parent
+                # Route the index path checking/writing inside cli.py
+                # Path.home() / ".hermes" / "mnemon_id_index.json"
+                # We can mock index_path to point to index_file
+                def side_effect(*parts):
+                    return index_file
+                mock_path.side_effect = side_effect
+                
+                with self.assertRaises(SystemExit) as cm:
+                    handle_mnemon_command(args, parser)
+                self.assertEqual(cm.exception.code, 0)
+                
+            output = mock_stdout.getvalue()
+            self.assertIn("Successfully requested soft-delete", output)
+            self.assertIn("Removed from local ID index", output)
+            # Verify it's actually removed from index_file
+            content = json.loads(index_file.read_text())
+            self.assertNotIn("uuid-123", content["ids"])
+        finally:
+            shutil.rmtree(tmpdir)
+
+    def test_register_cli(self):
+        from mnemon.cli import register_cli
+        subparser = MagicMock()
+        register_cli(subparser)
+        subparser.add_parser.assert_called_once_with("mnemon", help="Mnemon memory provider commands")
+
+
 if __name__ == "__main__":
     unittest.main()

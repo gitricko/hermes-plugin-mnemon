@@ -115,22 +115,58 @@ class MnemonMemoryProvider(MemoryProvider):
     # Core lifecycle
     # ------------------------------------------------------------------ #
 
+    def get_config_schema(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "key": "store",
+                "description": "Mnemon memory store name (defaults to profile name)",
+                "required": False,
+                "default": ""
+            }
+        ]
+
+    def save_config(self, values: dict[str, Any], hermes_home: str) -> None:
+        if not hermes_home:
+            return
+        config_file = Path(hermes_home) / "mnemon.json"
+        try:
+            config_file.parent.mkdir(parents=True, exist_ok=True)
+            config_file.write_text(json.dumps(values, indent=2))
+        except Exception as e:
+            logger.error("Failed to save mnemon config: %s", e)
+
     def is_available(self) -> bool:
         code, _, _ = _run_mnemon(["--version"])
         return code == 0
 
     def initialize(self, session_id: str, **kwargs) -> None:
         self._session_id = session_id
+        hermes_home = kwargs.get("hermes_home")
+        if hermes_home:
+            self._index_path = Path(hermes_home) / "mnemon_id_index.json"
+
+        # Load store config if it exists
+        store_config = None
+        if hermes_home:
+            config_file = Path(hermes_home) / "mnemon.json"
+            if config_file.exists():
+                try:
+                    config_data = json.loads(config_file.read_text())
+                    store_config = config_data.get("store")
+                except Exception as e:
+                    logger.warning("Failed to load mnemon.json: %s", e)
+
         profile = kwargs.get("agent_identity", "default")
-        # Use a fixed store name per profile (ignore session_id) so memory persists across restarts
-        self._store = os.environ.get("MNEMON_STORE", profile)
+        # Precedence: config value -> environment variable -> fallback to profile
+        self._store = store_config or os.environ.get("MNEMON_STORE") or profile
+
         # create store if needed (rc=0 created, rc=1 exists → both fine)
         code, _, _ = _run_mnemon(["store", "create", self._store], timeout=10)
         if code not in (0, 1):
             logger.warning("mnemon store create rc=%d", code)
         os.environ["MNEMON_STORE"] = self._store
         self._index_path.parent.mkdir(parents=True, exist_ok=True)
-        logger.info("mnemon: store=%s profile=%s", self._store, profile)
+        logger.info("mnemon: store=%s profile=%s index=%s", self._store, profile, self._index_path)
 
     def system_prompt_block(self) -> str:
         return "\n[mongraph]\nMnemon graph-memory is active. Context is fetched before each turn.\n"
@@ -214,6 +250,14 @@ class MnemonMemoryProvider(MemoryProvider):
                 "store": self._store,
                 "session": self._session_id,
             }
+
+            # Prevent the index from growing indefinitely (cap at 2000 recent items)
+            if len(idx["ids"]) > 2000:
+                # Remove oldest keys (first inserted) to keep the most recent 2000
+                old_keys = list(idx["ids"].keys())[:-2000]
+                for key in old_keys:
+                    idx["ids"].pop(key, None)
+
             self._index_path.write_text(json.dumps(idx, indent=2))
         return iid
 
