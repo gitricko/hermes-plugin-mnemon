@@ -335,7 +335,7 @@ class MnemonMemoryProvider(MemoryProvider):
         if self._max_mirror_chars > 0 and len(content) > self._max_mirror_chars:
             logger.warning(
                 "mnemon mirror: entry is %d chars; truncating to max_mirror_chars=%d. "
-                "Set max_mirror_chars: 0 in ~/.hermes/mnemon.json to store full content.",
+                "Set max_mirror_chars: 0 in the mnemon provider config to store full content.",
                 len(content), self._max_mirror_chars,
             )
         threading.Thread(
