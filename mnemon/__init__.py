@@ -122,6 +122,18 @@ class MnemonMemoryProvider(MemoryProvider):
                 "description": "Mnemon memory store name (defaults to profile name)",
                 "required": False,
                 "default": ""
+            },
+            {
+                "key": "max_compress_chars",
+                "description": "Cap (in chars) applied to each message stored by the on_pre_compress hook. Set to 0 for no cap (default: 600).",
+                "required": False,
+                "default": 600
+            },
+            {
+                "key": "max_mirror_chars",
+                "description": "Cap (in chars) applied when mirroring file-memory writes into mnemon. Set to 0 for no limit (default: 8000, matching the mnemon binary's own ceiling).",
+                "required": False,
+                "default": 8000
             }
         ]
 
@@ -155,6 +167,21 @@ class MnemonMemoryProvider(MemoryProvider):
                     store_config = config_data.get("store")
                 except Exception as e:
                     logger.warning("Failed to load mnemon.json: %s", e)
+
+        # Load plugin-specific config (max_compress_chars, max_mirror_chars)
+        max_compress_chars = 600
+        max_mirror_chars = 8000
+        if hermes_home:
+            config_file = Path(hermes_home) / "mnemon.json"
+            if config_file.exists():
+                try:
+                    plugin_data = json.loads(config_file.read_text())
+                    max_compress_chars = int(plugin_data.get("max_compress_chars", 600))
+                    max_mirror_chars = int(plugin_data.get("max_mirror_chars", 8000))
+                except Exception as e:
+                    logger.warning("Failed to load mnemon plugin config: %s", e)
+        self._max_compress_chars: int = max_compress_chars
+        self._max_mirror_chars: int = max_mirror_chars
 
         profile = kwargs.get("agent_identity", "default")
         # Precedence: config value -> environment variable -> fallback to profile
@@ -212,6 +239,7 @@ class MnemonMemoryProvider(MemoryProvider):
         if _FORGET_RE.search(combined):
             return
         for text in (user_text.strip(), asst_text.strip()):
+            # Skip noise: sub-30-char utterances rarely carry decision/preference signal
             if not text or len(text) < 30:
                 continue
             cat = self._auto_cat(text)
@@ -289,7 +317,7 @@ class MnemonMemoryProvider(MemoryProvider):
         key_msgs = [m for m in messages if m.get("role") in ("assistant","user")
                     and len(m.get("content","")) > 80][-10:]
         for msg in key_msgs:
-            self._remember_and_index(msg["content"][: 600],
+            self._remember_and_index(msg["content"][: self._max_compress_chars],
                                      category="context", importance=2)
         return ""
 
@@ -303,11 +331,18 @@ class MnemonMemoryProvider(MemoryProvider):
         cat = "preference" if target == "user" else "general"
         imp = 4 if cat == "preference" else 3
         src = (metadata or {}).get("write_origin", "agent")
+        # Warn if mirroring would truncate
+        if self._max_mirror_chars > 0 and len(content) > self._max_mirror_chars:
+            logger.warning(
+                "mnemon mirror: entry is %d chars; truncating to max_mirror_chars=%d. "
+                "Set max_mirror_chars: 0 in the mnemon provider config to store full content.",
+                len(content), self._max_mirror_chars,
+            )
         threading.Thread(
-            target=lambda: self._remember_and_index(content[:2500],
-                                                     category=cat,
-                                                     importance=imp,
-                                                     source=src),
+            target=lambda: self._remember_and_index(
+                content[: self._max_mirror_chars] if self._max_mirror_chars > 0 else content,
+                category=cat, importance=imp, source=src,
+            ),
             daemon=True,
         ).start()
 

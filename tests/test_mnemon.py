@@ -343,8 +343,10 @@ class TestConfigAndSetup(unittest.TestCase):
         p = MnemonMemoryProvider()
         schema = p.get_config_schema()
         self.assertIsInstance(schema, list)
-        self.assertEqual(len(schema), 1)
+        self.assertEqual(len(schema), 3)
         self.assertEqual(schema[0]["key"], "store")
+        self.assertEqual(schema[1]["key"], "max_compress_chars")
+        self.assertEqual(schema[2]["key"], "max_mirror_chars")
 
     @patch("mnemon._run_mnemon")
     def test_save_config_and_initialize_with_hermes_home(self, mock_run):
