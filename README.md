@@ -10,7 +10,7 @@
 > causal, semantic) with importance decay, dedup, soft-delete, and optional
 > vector recall via Ollama.
 
-For those who wants to give this Hermes-Agent Memory Provider plug for a spin, head to [Hermes-WebTop](https://github.com/gitricko/hermes-webtop) and start a codespace to try.
+For those who want to give this Hermes Agent Memory Provider plugin a spin, head to [Hermes-WebTop](https://github.com/gitricko/hermes-webtop) and start a GitHub Codespace to try it.
 
 ---
 
