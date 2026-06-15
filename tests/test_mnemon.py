@@ -247,6 +247,32 @@ class TestToolCalls(unittest.TestCase):
         self.assertIn("error", data)
 
     @patch("mnemon._run_mnemon")
+    def test_remember_error_reports_stderr(self, mock_run):
+        mock_run.return_value = (1, "", "content too long (10000 chars, max 8000)")
+        idx_path = Path("/tmp/test_mnemon_index_%d.json" % id(self))
+        with patch.object(self.p, "_index_path", idx_path):
+            result = self.p.handle_tool_call("mnemon_remember", {"text": "foo"})
+        data = json.loads(result)
+        self.assertFalse(data["success"])
+        self.assertEqual(data["id"], "error")
+        self.assertEqual(data["error"], "content too long (10000 chars, max 8000)")
+
+    @patch("mnemon._run_mnemon")
+    def test_remember_clamping(self, mock_run):
+        mock_run.return_value = (0, MNEMON_OK, "")
+        idx_path = Path("/tmp/test_mnemon_index_%d.json" % id(self))
+        with patch.object(self.p, "_index_path", idx_path):
+            if idx_path.exists():
+                try:
+                    idx_path.unlink()
+                except Exception:
+                    pass
+            self.p.handle_tool_call("mnemon_remember", {"text": "foo", "importance": 8})
+        called_args = mock_run.call_args[0][0]
+        self.assertIn("--imp", called_args)
+        self.assertEqual(called_args[called_args.index("--imp") + 1], "5")
+
+    @patch("mnemon._run_mnemon")
     def test_recall_returns_hits(self, mock_run):
         mock_run.return_value = (0, RECALL_OK, "")
         result = self.p.handle_tool_call("mnemon_recall", {"query": "memory", "limit": 5})
