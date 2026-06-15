@@ -96,6 +96,7 @@ class MnemonMemoryProvider(MemoryProvider):
         self._recall_cache: list | None = None
         self._last_prefetch_at: float = 0.0
         self._prefetch_ttl: int = 30
+        self._last_remember_error: str | None = None
 
     INTENT_MAP = {
         "why": "WHY", "because": "WHY",
@@ -251,15 +252,19 @@ class MnemonMemoryProvider(MemoryProvider):
                   entities: list[str] | None = None,
                   tags: list[str] | None = None,
                   source: str = "agent") -> str | None:
+        importance = max(1, min(5, importance))
         args = ["remember", text, "--cat", category,
                 "--imp", str(importance), "--source", source]
         if entities:
             args += ["--entities", ",".join(entities)]
         if tags:
             args += ["--tags", ",".join(tags)]
-        code, stdout, _ = _run_mnemon(args, timeout=15)
+        code, stdout, stderr = _run_mnemon(args, timeout=15)
         if code != 0:
+            logger.warning("mnemon remember failed (rc=%d): %s", code, stderr.strip()[:200])
+            self._last_remember_error = stderr.strip()
             return None
+        self._last_remember_error = None
         return _json_output(stdout).get("id")
 
     def _remember_and_index(self, text: str, **kwargs) -> str | None:
@@ -413,7 +418,10 @@ class MnemonMemoryProvider(MemoryProvider):
                 tags=args.get("tags", []),
                 source=args.get("source", "agent"),
             )
-            return json.dumps({"success": bool(iid), "id": iid or "error"})
+            if not iid:
+                err = getattr(self, "_last_remember_error", "") or "unknown error"
+                return json.dumps({"success": False, "id": "error", "error": err})
+            return json.dumps({"success": True, "id": iid})
 
         if tool_name == "mnemon_recall":
             q = args.get("query", "").strip()
