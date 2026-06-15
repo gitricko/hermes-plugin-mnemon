@@ -52,7 +52,7 @@ Mnemon adds:
 
 | Dependency | Version | Install |
 |---|---|---|
-| [mnemon](https://github.com/mnemon-dev/mnemon) | ≥ 0.1.3 | `curl -fsSL <mnemon install url> \| sh` |
+| [mnemon](https://github.com/mnemon-dev/mnemon) | ≥ 0.1.14 | `curl -fsSL <mnemon install url> \| sh` |
 | (optional) [Ollama](https://ollama.ai) | latest | `ollama pull nomic-embed-text` |
 | Hermes Agent | ≥ 0.9.0 | see [Hermes docs](https://hermes-agent.nousresearch.com) |
 | Python | ≥ 3.11 | system Python or `uv` |
@@ -60,7 +60,7 @@ Mnemon adds:
 Verify prerequisites:
 
 ```bash
-mnemon --version   # ≥ 0.1.3
+mnemon --version   # ≥ 0.1.14
 python --version   # ≥ 3.11
 ```
 
