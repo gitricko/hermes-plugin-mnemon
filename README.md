@@ -5,8 +5,8 @@
 [![CI](https://github.com/gitricko/hermes-plugin-mnemon/actions/workflows/ci.yml/badge.svg)](https://github.com/gitricko/hermes-plugin-mnemon/actions/workflows/ci.yml)
 
 > **Mnemon graph-based memory for [Hermes Agent](https://github.com/nousresearch/hermes-agent)**
-> wraps [`mnemon v0.1.x`](https://github.com/mnemon-dev/mnemon) as a native
-> `MemoryProvider`. Gives Hermes a four-graph memory store (temporal, entity,
+> wraps the [`mnemon` CLI](https://github.com/mnemon-dev/mnemon) (tested 0.1.14 → 0.2.12)
+> as a native `MemoryProvider`. Gives Hermes a four-graph memory store (temporal, entity,
 > causal, semantic) with importance decay, dedup, soft-delete, and optional
 > vector recall via Ollama.
 
