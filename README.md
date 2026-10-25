@@ -92,14 +92,16 @@ Edits in this repo are live on Hermes restart — no copy step needed.
 
 ```bash
 pip install hermes-plugin-mnemon
-# Then symlink or copy into Hermes' plugin dir:
-hermes-plugin-mnemon install   # placeholder — user copies manually
+# Then locate the installed `mnemon` package and symlink it into Hermes' plugin dir:
+mkdir -p ~/.hermes/plugins
+MNEMON_PKG=$(python -c "import mnemon, os; print(os.path.dirname(mnemon.__file__))")
+ln -sfn "$MNEMON_PKG" ~/.hermes/plugins/mnemon
 ```
 
 > **Note.** Hermes discovers plugins in `~/.hermes/plugins/`, not in `site-packages`.
-> A pip install puts the code there but you still need one manual copy or symlink step.
-> For teams that share `config.yaml` across machines, add a small post-install script
-> (`hermes-plugin-mnemon install`) that performs the symlink automatically.
+> A pip install puts the code there but you still need one manual copy or symlink step,
+> as shown above. The same copy/symlink step applies to teams that share
+> `config.yaml` across machines — run it once per machine.
 
 ---
 

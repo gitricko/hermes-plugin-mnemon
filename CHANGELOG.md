@@ -7,6 +7,14 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- README: removed the phantom `hermes-plugin-mnemon install` command. The
+  package ships no `[project.scripts]` entry, so the command never existed.
+  Option C now shows the real post-pip step (locate the installed package
+  via `python -c 'import mnemon, ...'` and symlink it into
+  `~/.hermes/plugins/`), and the team-sharing note references those steps
+  instead of a non-existent installer. See #24.
+
 ### Changed
 - Store selection no longer mutates the process-global
   `os.environ["MNEMON_STORE"]`. The resolved store is now passed explicitly to
