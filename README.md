@@ -223,4 +223,3 @@ hermes-plugin-mnemon/
 ## License
 
 MIT — see [LICENSE](LICENSE).
-© 2026 Nous Research.
