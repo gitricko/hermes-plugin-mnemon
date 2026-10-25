@@ -5,6 +5,20 @@ All notable changes to `hermes-plugin-mnemon` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] — 2026-10-25
+
+### Fixed
+- Use `agent.memory_provider.spawn_context_thread` for all background jobs
+  (`queue_prefetch`, `sync_turn`, `on_memory_write`) instead of bare
+  `threading.Thread`, per the Hermes memory provider contract.
+  A bare thread starts with empty contextvars, which silently lands
+  multiplexed profiles on the default profile's store.
+
+### Removed
+- Dead `hooks:` list in `mnemon/plugin.yaml`. The memory-provider loader
+  does not read this key (it only reads `name`), `on_session_end` is
+  unimplemented, and no bundled provider ships a `hooks:` section.
+
 ## [0.1.0] — 2026-05-20
 
 ### Added
