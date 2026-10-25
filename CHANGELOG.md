@@ -36,4 +36,4 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 - 22 unit tests covering all hooks, tool calls, parsers and intent detection
 - GitHub Actions CI: ruff → pytest → build
 
-[0.1.0]: https://github.com/mnemon-dev/hermes-plugin-mnemon/releases/tag/v0.1.0
+[0.1.0]: https://github.com/gitricko/hermes-plugin-mnemon/releases/tag/v0.1.0

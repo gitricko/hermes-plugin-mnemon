@@ -1,2 +1,24 @@
+# Python / bytecode
 **/*.pyc
+**/__pycache__/
+.pytest_cache/
+
+# Lock files not part of this project
 poetry.lock
+
+# Build / packaging artifacts
+build/
+dist/
+*.egg-info/
+
+# Coverage / test outputs
+.coverage
+coverage.xml
+
+# Local dev venvs
+.venv-test/
+.venv/
+
+# Editor / OS noise
+.DS_Store
+*.swp
