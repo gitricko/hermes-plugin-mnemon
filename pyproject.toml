@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hermes-plugin-mnemon"
-version = "0.1.0"
+version = "0.1.1"
 description = "Mnemon graph-based memory — Hermes MemoryProvider wrapping the mnemon CLI."
 readme = "README.md"
 license = { text = "MIT" }

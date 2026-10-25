@@ -25,7 +25,23 @@ class _MemoryProvider:
     """Minimal stand-in for Hermes' MemoryProvider ABC."""
     name = ""
 
+
+import threading as _stub_threading  # noqa: E402
+
+
+def _stub_spawn_context_thread(target, *, name, daemon=True, args=(), kwargs=None):
+    """Stub mirroring the real agent.memory_provider.spawn_context_thread.
+
+    Returns an unstarted threading.Thread so callers can assert on the
+    arguments and call .start() exactly as the real one expects.
+    """
+    return _stub_threading.Thread(
+        target=target, args=args, kwargs=kwargs, name=name, daemon=daemon,
+    )
+
+
 agent_mem_provider.MemoryProvider = _MemoryProvider
+agent_mem_provider.spawn_context_thread = _stub_spawn_context_thread
 sys.modules["agent"] = agent_mod
 sys.modules["agent.memory_provider"] = agent_mem_provider
 
@@ -494,6 +510,63 @@ class TestCliExtension(unittest.TestCase):
         subparser = MagicMock()
         register_cli(subparser)
         subparser.add_parser.assert_called_once_with("mnemon", help="Mnemon memory provider commands")
+
+
+# ---------------------------------------------------------------------------
+# Issue #17 contextvar contract: background jobs MUST go through
+# agent.memory_provider.spawn_context_thread (see the in-tree reference
+# provider plugins/memory/supermemory/__init__.py lines 15 and 494), not
+# bare threading.Thread. A bare thread starts with empty contextvars and,
+# under multiplexed profiles, would silently land on the default profile's
+# store (or fail closed on get_secret()).
+# ---------------------------------------------------------------------------
+
+class TestSpawnContextThread(unittest.TestCase):
+
+    def setUp(self):
+        self.p = MnemonMemoryProvider()
+        self.p._store = "test-store"
+        self.p._session_id = "s1"
+        # initialize() normally sets these from hermes_home config; emulate here
+        self.p._max_compress_chars = 600
+        self.p._max_mirror_chars = 8000
+
+    @patch("mnemon.spawn_context_thread")
+    def test_queue_prefetch_uses_spawn_context_thread(self, mock_spawn):
+        self.p.queue_prefetch("query", session_id="s1")
+        mock_spawn.assert_called_once_with(
+            self.p.prefetch,
+            name="mnemon-prefetch",
+            args=("query",),
+            kwargs={"session_id": "s1"},
+        )
+
+    @patch("mnemon.spawn_context_thread")
+    def test_sync_turn_uses_spawn_context_thread(self, mock_spawn):
+        self.p.sync_turn("user said x", "agent replied y", session_id="s1")
+        mock_spawn.assert_called_once_with(
+            self.p._auto_remember,
+            name="mnemon-sync",
+            args=("user said x", "agent replied y"),
+        )
+
+    @patch("mnemon.spawn_context_thread")
+    def test_on_memory_write_uses_spawn_context_thread(self, mock_spawn):
+        with patch.object(self.p, "_remember_and_index") as mock_idx:
+            mock_idx.return_value = "uuid-1"
+            self.p.on_memory_write("add", "user", "remember this")
+            # the target is a closure; exec it inside the patch so it hits the mock
+            call = mock_spawn.call_args
+            target = call.args[0] if call.args else call.kwargs.get("target")
+            self.assertTrue(callable(target))
+            target()  # should not raise
+        mock_spawn.assert_called_once()
+        self.assertEqual(call.kwargs.get("name"), "mnemon-mirror")
+        mock_idx.assert_called_once()
+        _, kw = mock_idx.call_args
+        self.assertEqual(kw.get("category"), "preference")
+        self.assertEqual(kw.get("importance"), 4)
+        self.assertEqual(kw.get("source"), "agent")
 
 
 if __name__ == "__main__":

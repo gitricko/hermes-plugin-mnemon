@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from agent.memory_provider import MemoryProvider
+from agent.memory_provider import MemoryProvider, spawn_context_thread
 from tools.registry import tool_error
 
 logger = logging.getLogger(__name__)
@@ -222,9 +222,10 @@ class MnemonMemoryProvider(MemoryProvider):
         return _fmt_hits(hits)
 
     def queue_prefetch(self, query: str, *, session_id: str = "") -> None:
-        threading.Thread(target=self.prefetch,
-                         args=(query,), kwargs={"session_id": session_id},
-                         daemon=True).start()
+        spawn_context_thread(
+            self.prefetch, name="mnemon-prefetch",
+            args=(query,), kwargs={"session_id": session_id},
+        ).start()
 
     # ---------- sync_turn ----------------------------------------------- #
 
@@ -298,9 +299,10 @@ class MnemonMemoryProvider(MemoryProvider):
 
     def sync_turn(self, user_content: str, assistant_content: str,
                   *, session_id: str = "") -> None:
-        threading.Thread(target=self._auto_remember,
-                         args=(user_content, assistant_content),
-                         daemon=True).start()
+        spawn_context_thread(
+            self._auto_remember, name="mnemon-sync",
+            args=(user_content, assistant_content),
+        ).start()
 
     # ---------- session switch ------------------------------------------ #
 
@@ -343,12 +345,13 @@ class MnemonMemoryProvider(MemoryProvider):
                 "Set max_mirror_chars: 0 in the mnemon provider config to store full content.",
                 len(content), self._max_mirror_chars,
             )
-        threading.Thread(
-            target=lambda: self._remember_and_index(
-                content[: self._max_mirror_chars] if self._max_mirror_chars > 0 else content,
+        content_to_store = content[: self._max_mirror_chars] if self._max_mirror_chars > 0 else content
+        spawn_context_thread(
+            lambda: self._remember_and_index(
+                content_to_store,
                 category=cat, importance=imp, source=src,
             ),
-            daemon=True,
+            name="mnemon-mirror",
         ).start()
 
     # ---------- tool schemas + dispatch -------------------------------- #
