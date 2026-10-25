@@ -114,7 +114,7 @@ hermes-plugin-mnemon install   # placeholder — user copies manually
 | `sync_turn(user, asst)` | Background `mnemon remember` on every turn |
 | `on_memory_write(action, target, content, …)` | Mirrors built-in `memory add/replace` into mnemon |
 | `on_pre_compress(messages)` | Persists last 10 key turns before compression |
-| `on_session_switch(new_id, …)` | Resets recall cache, updates store env |
+| `on_session_switch(new_id, …)` | Resets recall cache, clears store on reset |
 | `shutdown()` | Clears recall cache |
 
 ### Store naming
@@ -124,8 +124,12 @@ hermes-plugin-mnemon install   # placeholder — user copies manually
 ```
 
 Each Hermes profile gets its own dedicated store that is reused across sessions,
-so memory persists. Override manually with `MNEMON_STORE=your-name` env var
-(takes precedence over the profile‑derived name).
+so memory persists. The store is **resolved once at `initialize()`** (config →
+`MNEMON_STORE` env → profile) and then passed explicitly to the `mnemon` CLI
+as `--store <name>` on every invocation (a per-call flag available since
+mnemon 0.1.14), so concurrent profiles never race on shared process state.
+Override the resolved name with the `MNEMON_STORE` env var or the `store`
+config key (both take precedence over the profile‑derived name).
 
 ---
 

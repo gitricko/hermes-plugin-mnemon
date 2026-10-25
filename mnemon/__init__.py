@@ -33,7 +33,17 @@ logger = logging.getLogger(__name__)
 # Low-level mnemon CLI helpers
 # ---------------------------------------------------------------------------
 
-def _run_mnemon(cmd_args: list[str], timeout: int = 15) -> tuple[int, str, str]:
+def _run_mnemon(cmd_args: list[str], timeout: int = 15,
+                *, store: str | None = None) -> tuple[int, str, str]:
+    """Run the `mnemon` CLI.
+
+    When `store` is truthy it is appended to the argv as `--store <name>`
+    (verified as a global flag on mnemon ≥ 0.1.14, overriding `MNEMON_STORE`
+    and the active file). The process-global `os.environ["MNEMON_STORE"]`
+    is never touched, so concurrent profiles/sessions cannot race on it.
+    """
+    if store:
+        cmd_args = list(cmd_args) + ["--store", store]
     try:
         r = subprocess.run(["mnemon"] + cmd_args,
                            capture_output=True, text=True, timeout=timeout)
@@ -189,10 +199,10 @@ class MnemonMemoryProvider(MemoryProvider):
         self._store = store_config or os.environ.get("MNEMON_STORE") or profile
 
         # create store if needed (rc=0 created, rc=1 exists → both fine)
-        code, _, _ = _run_mnemon(["store", "create", self._store], timeout=10)
+        code, _, _ = _run_mnemon(["store", "create", self._store], timeout=10,
+                                 store=self._store)
         if code not in (0, 1):
             logger.warning("mnemon store create rc=%d", code)
-        os.environ["MNEMON_STORE"] = self._store
         self._index_path.parent.mkdir(parents=True, exist_ok=True)
         logger.info("mnemon: store=%s profile=%s index=%s", self._store, profile, self._index_path)
 
@@ -207,7 +217,8 @@ class MnemonMemoryProvider(MemoryProvider):
             return _fmt_hits(self._recall_cache)
         intent = self._detect_intent(query)
         code, stdout, stderr = _run_mnemon(
-            ["recall", query, "--limit", "8", "--intent", intent], timeout=10,
+            ["recall", query, "--limit", "8", "--intent", intent],
+            timeout=10, store=self._store,
         )
         if code != 0:
             logger.debug("mnemon recall error: %s", stderr.strip())
@@ -260,7 +271,7 @@ class MnemonMemoryProvider(MemoryProvider):
             args += ["--entities", ",".join(entities)]
         if tags:
             args += ["--tags", ",".join(tags)]
-        code, stdout, stderr = _run_mnemon(args, timeout=15)
+        code, stdout, stderr = _run_mnemon(args, timeout=15, store=self._store)
         if code != 0:
             logger.warning("mnemon remember failed (rc=%d): %s", code, stderr.strip()[:200])
             self._last_remember_error = stderr.strip()
@@ -315,8 +326,6 @@ class MnemonMemoryProvider(MemoryProvider):
         self._last_prefetch_at = 0
         if reset:
             self._store = None
-        if self._store:
-            os.environ["MNEMON_STORE"] = self._store
 
     # ---------- pre-compress ------------------------------------------- #
 
@@ -434,7 +443,7 @@ class MnemonMemoryProvider(MemoryProvider):
                 ["recall", q,
                  "--limit", str(args.get("limit", 8)),
                  "--intent", args.get("intent", "GENERAL")],
-                timeout=15,
+                timeout=15, store=self._store,
             )
             if code != 0:
                 return tool_error(f"recall error ({code}): {stderr.strip()}")
@@ -446,7 +455,8 @@ class MnemonMemoryProvider(MemoryProvider):
             iid = args.get("insight_id", "").strip()
             if not iid:
                 return tool_error("insight_id is required")
-            code, stdout, stderr = _run_mnemon(["forget", iid], timeout=10)
+            code, stdout, stderr = _run_mnemon(["forget", iid], timeout=10,
+                                               store=self._store)
             if code != 0:
                 return tool_error(f"forget error ({code}): {stderr.strip()}")
             with _IDX_LOCK:
