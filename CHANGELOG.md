@@ -5,6 +5,17 @@ All notable changes to `hermes-plugin-mnemon` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- Store selection no longer mutates the process-global
+  `os.environ["MNEMON_STORE"]`. The resolved store is now passed explicitly to
+  every `mnemon` CLI invocation via the `--store <name>` flag (available
+  since mnemon 0.1.14 — verified across 0.1.14–0.2.12), appended inside
+  `_run_mnemon()` as a keyword-only `store=` parameter. Multiple profiles or
+  sessions multiplexed in one process can no longer race on a single global
+  env var; the store in use is now derivable from each call site.
+
 ## [0.1.1] — 2026-10-25
 
 ### Fixed

@@ -8,6 +8,7 @@ the plugin can be imported and tested in isolation.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import types
 import unittest
@@ -114,6 +115,28 @@ class TestRunMnemon(unittest.TestCase):
         self.assertEqual(rc, 127)
         self.assertIn("not found", err)
 
+    @patch("mnemon.subprocess.run")
+    def test_store_flag_appended_to_argv(self, mock_run):
+        mock_run.return_value = MockResult(0, MNEMON_OK, "")
+        from mnemon import _run_mnemon
+        rc, out, err = _run_mnemon(["recall", "x"], store="my-store")
+        mock_run.assert_called_once_with(
+            ["mnemon", "recall", "x", "--store", "my-store"],
+            capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(rc, 0)
+
+    @patch("mnemon.subprocess.run")
+    def test_store_flag_omitted_when_none(self, mock_run):
+        mock_run.return_value = MockResult(0, MNEMON_OK, "")
+        from mnemon import _run_mnemon
+        rc, out, err = _run_mnemon(["recall", "x"], store=None)
+        mock_run.assert_called_once_with(
+            ["mnemon", "recall", "x"],
+            capture_output=True, text=True, timeout=15,
+        )
+        self.assertEqual(rc, 0)
+
 
 class TestJsonOutput(unittest.TestCase):
 
@@ -180,12 +203,31 @@ class TestLifecycle(unittest.TestCase):
         p.initialize("ses-123", agent_identity="default")
 
     @patch("mnemon._run_mnemon")
-    def test_initialize_env_set(self, mock_run):
+    def test_initialize_does_not_mutate_environ(self, mock_run):
         mock_run.return_value = (0, "", "")
         p = MnemonMemoryProvider()
-        with patch.dict("os.environ", {}, clear=False):
+        sentinel = "SENTINEL-STORE-DO-NOT-TOUCH"
+        with patch.dict("os.environ", {
+            "MNEMON_STORE": sentinel,
+        }, clear=False):
             p.initialize("ses-abc", agent_identity="bot")
-        self.assertIn("MNEMON_STORE", __import__("os").environ)
+            # New contract: the store is forwarded per call on the CLI argv,
+            # never written to the process-global environ.
+            self.assertEqual(os.environ["MNEMON_STORE"], sentinel)
+        # Store resolves to the env value (precedence rule), forwarded per call.
+        for call in mock_run.call_args_list:
+            self.assertIn("store", call[1])
+            self.assertEqual(call[1]["store"], sentinel)
+
+    @patch("mnemon._run_mnemon")
+    def test_initialize_passes_store_kwarg(self, mock_run):
+        mock_run.return_value = (0, "", "")
+        p = MnemonMemoryProvider()
+        with patch.dict("os.environ", {"MNEMON_STORE": "default"}, clear=False):
+            p.initialize("ses-abc")
+            self.assertEqual(p._store, "default")
+        for call in mock_run.call_args_list:
+            self.assertEqual(call[1].get("store"), "default")
 
     @patch("mnemon._run_mnemon")
     def test_shutdown(self, mock_run):
@@ -210,28 +252,32 @@ class TestPrefetch(unittest.TestCase):
     def test_cache_ttl(self, mock_run):
         mock_run.return_value = (0, RECALL_OK, "")
         p = MnemonMemoryProvider()
-        with patch.dict("os.environ", {"MNEMON_STORE": "default"}, clear=False):
-            out1 = p.prefetch("how do I debug?")
-            out2 = p.prefetch("how do I debug?")  # should hit cache
+        p._store = "default"
+        out1 = p.prefetch("how do I debug?")
+        out2 = p.prefetch("how do I debug?")  # should hit cache
         mock_run.assert_called_once()      # second call is cached
+        self.assertIn("store", mock_run.call_args[1])
+        self.assertEqual(mock_run.call_args[1]["store"], "default")
 
     @patch("mnemon._run_mnemon")
     def test_empty_recall(self, mock_run):
         mock_run.return_value = (0, '{"results":[]}', "")
         p = MnemonMemoryProvider()
-        with patch.dict("os.environ", {"MNEMON_STORE": "default"}, clear=False):
-            out = p.prefetch("obscure query xyz")
+        p._store = "default"
+        out = p.prefetch("obscure query xyz")
         self.assertEqual(out, "")
+        self.assertEqual(mock_run.call_args[1].get("store"), "default")
 
     @patch("mnemon._run_mnemon")
     def test_intent_detection(self, mock_run):
         mock_run.return_value = (0, RECALL_OK, "")
         p = MnemonMemoryProvider()
-        with patch.dict("os.environ", {"MNEMON_STORE": "default"}, clear=False):
-            p.prefetch("why did it fail?", session_id="s1")
+        p._store = "default"
+        p.prefetch("why did it fail?", session_id="s1")
         called_args = mock_run.call_args[0][0]
         self.assertIn("WHY", called_args)
         self.assertIn("recall", called_args)
+        self.assertEqual(mock_run.call_args[1].get("store"), "default")
 
 
 # ---------------------------------------------------------------------------
@@ -242,9 +288,8 @@ class TestToolCalls(unittest.TestCase):
 
     def setUp(self):
         self.p = MnemonMemoryProvider()
-        with patch.dict("os.environ", {"MNEMON_STORE": "test-store"}, clear=False):
-            self.p._store = "test-store"
-            self.p._session_id = "s1"
+        self.p._store = "test-store"
+        self.p._session_id = "s1"
 
     @patch("mnemon._run_mnemon")
     def test_remember_returns_id(self, mock_run):
@@ -287,6 +332,7 @@ class TestToolCalls(unittest.TestCase):
         called_args = mock_run.call_args[0][0]
         self.assertIn("--imp", called_args)
         self.assertEqual(called_args[called_args.index("--imp") + 1], "5")
+        self.assertEqual(mock_run.call_args[1].get("store"), "test-store")
 
     @patch("mnemon._run_mnemon")
     def test_recall_returns_hits(self, mock_run):
@@ -296,6 +342,7 @@ class TestToolCalls(unittest.TestCase):
         self.assertEqual(data["count"], 2)
         self.assertEqual(len(data["hits"]), 2)
         self.assertGreaterEqual(data["hits"][0]["score"], 0)
+        self.assertEqual(mock_run.call_args[1].get("store"), "test-store")
 
     def test_recall_empty_query(self):
         result = self.p.handle_tool_call("mnemon_recall", {"query": ""})
@@ -313,6 +360,7 @@ class TestToolCalls(unittest.TestCase):
         data = json.loads(result)
         self.assertTrue(data["success"])
         self.assertIn("i1", data["forgotten"])
+        self.assertEqual(mock_run.call_args[1].get("store"), "test-store")
 
     def test_forget_missing_id(self):
         result = self.p.handle_tool_call("mnemon_forget", {"insight_id": ""})
