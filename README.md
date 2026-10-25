@@ -133,6 +133,41 @@ mnemon 0.1.14), so concurrent profiles never race on shared process state.
 Override the resolved name with the `MNEMON_STORE` env var or the `store`
 config key (both take precedence over the profile‑derived name).
 
+### Two ways to hook mnemon into Hermes
+
+Two different integration paths exist and are easy to conflate. They are
+architecturally distinct:
+
+- **This plugin (MemoryProvider path).** A typed Python
+  `MemoryProvider` inside Hermes. The harness *calls* the plugin's hooks and
+  the LLM gets a tool API (`mnemon_recall` / `mnemon_remember` /
+  `mnemon_forget`). Everything is driven by code, so it works regardless of
+  whether the model "remembers" to use memory.
+- **Upstream `mnemon setup --target hermes` (hooks path).** `mnemon` itself
+  injects a `SKILL.md` into `~/.hermes/skills/mnemon` plus four shell hooks
+  (`prime.sh` / `remind.sh` / `nudge.sh` / `compact.sh`) registered under
+  `on_session_start` / `pre_llm_call` / `post_llm_call` /
+  `on_session_finalize`. Memory behavior is mostly **prompt-driven prose** —
+  the LLM is expected to notice the skill and act on hook-injected reminders.
+
+| | This plugin (MemoryProvider) | Upstream `setup --target hermes` (hooks) |
+|---|---|---|
+| Surface | Python provider API + typed tools | SKILL.md + 4 shell scripts + config entries |
+| Writes | Real code: `on_pre_compress` persists the last 10 substantive turns **before** Hermes compresses; `on_memory_write` mirrors built-in memory writes; `sync_turn` remembers every turn on a background thread | Prose nudges only: `compact.sh` writes a static "consider `mnemon remember`" note at **session finalize**, `nudge.sh` queues a reminder string — no automatic writeback |
+| Recall | `prefetch` + per-turn intent detection + tool-driven recall | `remind.sh` runs `mnemon recall "<latest user message>"` each turn and injects the result |
+| Lifecycle hooks | `on_session_switch`, `on_pre_compress`, `on_memory_write`, `sync_turn` | `on_session_start`, `pre_llm_call`, `post_llm_call`, `on_session_finalize` |
+| Isolation | Per-profile named store passed as explicit `--store` on every call; no shared env state | One active store derived from agent identity; `MNEMON_DATA_DIR` env |
+| Portability | Hermes only | Same adapter shape serves other runtimes too (Pi, DSH, Cursor, Codex, …); binary is self-updating and the installer re-runnable |
+
+**Bottom line.** Inside Hermes specifically, this plugin programs more of the
+session lifecycle, including the piece that matters most for long sessions:
+a *real* pre-compaction writeback, while the upstream `compact.sh` fires at a
+different lifecycle point (final session close) and writes a static nudge, not
+memory. The upstream route's genuine strengths are cross-runtime portability,
+a simpler stable contract (JSON-in / JSON-out shell hooks), one-command
+install, and self-updating — worthwhile if you need one mnemon setup spanning
+several coding runtimes rather than the deepest possible Hermes integration.
+
 ---
 
 ## Tools
